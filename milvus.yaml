@@ -1,0 +1,184 @@
+############################################################
+# Milvus Standalone Config (Optimized for 200–300M vectors)
+############################################################
+
+version: 2.2
+
+############################################################
+# ETCD (metadata store)
+############################################################
+etcd:
+  endpoints: etcd:2379
+  rootPath: milvus-standalone
+  metaSubPath: meta
+  kvSubPath: kv
+  requestTimeout: 10000
+
+############################################################
+# STORAGE ENGINE (remote: MinIO)
+############################################################
+common:
+  storageType: remote
+  defaultPartitionName: _default
+  defaultIndexName: _default_idx
+  entityExpiration: -1
+
+minio:
+  address: minio:9000
+  port: 9000
+  accessKeyID: minioadmin
+  secretAccessKey: minioadmin
+  useSSL: false
+  bucketName: milvus-bucket
+  rootPath: instance-standalone
+  cloudProvider: aws
+  region:
+
+############################################################
+# LOGGING
+############################################################
+log:
+  level: info
+  file:
+    rootPath: /var/lib/milvus/logs
+    maxSize: 300
+    maxAge: 10
+    maxBackups: 20
+  stdout: true
+
+############################################################
+# ROCKSMQ (default messaging for standalone)
+############################################################
+mq:
+  type: rocksmq
+  rocksmqPath: /var/lib/milvus/wal
+
+rocksmq:
+  path: /var/lib/milvus/wal
+  rocksmqPageSize: 67108864
+  retentionTimeInMinutes: 4320
+  retentionSizeInMB: 8192
+
+############################################################
+# QUERY NODE (search engine)
+############################################################
+queryNode:
+  enableDisk: true                   # critical for 300M vectors
+  loopPeriodMs: 500
+  cache:
+    memoryLimit: 0
+    readAheadPolicy: willneed
+  mmap:
+    vectorField: true                # mmap vector data
+    vectorIndex: true                # mmap index (best for DISKANN)
+    scalarField: false
+    scalarIndex: false
+    jsonStats: true
+
+  segcore:
+    chunkRows: 128
+    useReconstruct: false
+    interimIndex:
+      enableIndex: true
+      nlist: 2048
+      nprobe: 32
+      subDim: 4
+      refineRatio: 4.0
+      indexBuildRatio: 0.15
+      denseVectorIndexType: IVF_PQ
+
+  scheduler:
+    maxReadConcurrentRatio: 2
+    cpuRatio: 10
+
+############################################################
+# DATA NODE (insert & segment handling)
+############################################################
+dataNode:
+  segment:
+    insertBufSize: 16777216
+    deleteBufBytes: 16777216
+    syncPeriod: 600
+  memory:
+    forceSyncEnable: true
+    forceSyncSegmentNum: 1
+    checkInterval: 3000
+
+############################################################
+# DATA COORD (compaction)
+############################################################
+dataCoord:
+  segment:
+    maxSize: 2048                 # 2GB per segment = best for large dataset
+    diskSegmentMaxSize: 4096
+    sealProportion: 0.1
+  enableCompaction: true
+  compaction:
+    enableAutoCompaction: true
+    indexBasedCompaction: true
+
+############################################################
+# GPU (indexing acceleration)
+############################################################
+gpu:
+  searchThreshold: 1000
+  enable: true
+  initMemSize: 4096
+  maxMemSize: 16384
+  overloadedMemoryThresholdPercentage: 95
+
+############################################################
+# KNOWHERE (index backend tuning)
+############################################################
+knowhere:
+  enable: true
+  log:
+    level: info
+
+  # DISKANN — best for >200M vectors
+  DISKANN:
+    build:
+      max_degree: 48
+      pq_code_budget_gb_ratio: 0.125
+      search_cache_budget_gb_ratio: 0.1
+      search_list_size: 100
+    search:
+      beam_width_ratio: 4
+
+############################################################
+# PROXY SERVICE (public API endpoint)
+############################################################
+proxy:
+  port: 19530
+  http:
+    enabled: true
+    port: 9091
+    enableWebUI: true
+  maxNameLength: 255
+  maxFieldNum: 64
+  maxVectorFieldNum: 4
+  ddlConcurrency: 16
+  slowQuerySpanInSeconds: 5
+
+############################################################
+# QUOTA & LIMITS
+############################################################
+quotaAndLimits:
+  enabled: true
+  limitWriting:
+    memProtection:
+      enabled: true
+      dataNodeMemoryLowWaterLevel: 0.85
+      dataNodeMemoryHighWaterLevel: 0.95
+      queryNodeMemoryLowWaterLevel: 0.85
+      queryNodeMemoryHighWaterLevel: 0.95
+  limitReading:
+    forceDeny: false
+
+############################################################
+# FUNCTION
+############################################################
+function:
+  analyzer:
+    local_resource_path: /var/lib/milvus/analyzer
+
